@@ -29,6 +29,7 @@ def resample_events(stim_array,resample_coef=50):
     returns numpy array with rounded resampled stimulus."""
     return np.round(stim_array/resample_coef).astype(int)
 
+
 def analysis(filename_signal,filename_events,output,freq=FREQ,originf=ORIGINF,cutoff=2,correction=1000000):
     """
     Conduct analysis- open file, preprocess data (resample, filter with lowpass filter, 
@@ -61,16 +62,23 @@ def analysis(filename_signal,filename_events,output,freq=FREQ,originf=ORIGINF,cu
         tmp_max15=np.max(filtered[datapoint:datapoint+(15*FREQ)])*correction
         tmp_max12=np.max(filtered[datapoint:datapoint+(12*FREQ)])*correction
 
-        result.append((f'{name}_baseline'.replace(' ',''),tmp_bsle))
-        result.append((f'{name}_mean30'.replace(' ',''),tmp_mean30))
-        result.append((f'{name}_mean15'.replace(' ',''),tmp_mean15))
-        result.append((f'{name}_mean12'.replace(' ',''),tmp_mean12))
-        result.append((f'{name}_min30'.replace(' ',''),tmp_min30))
-        result.append((f'{name}_min15'.replace(' ',''),tmp_min15))
-        result.append((f'{name}_min12'.replace(' ',''),tmp_min12))
-        result.append((f'{name}_max30'.replace(' ',''),tmp_max30))
-        result.append((f'{name}_max15'.replace(' ',''),tmp_max15))
-        result.append((f'{name}_max12'.replace(' ',''),tmp_max12))
+        for suffix,suf_value in zip(['_baseline','_mean30','_mean15','_mean12','_min30',
+                                     '_min15','_min12','_max30','_max15','_max12'],
+                                    [tmp_bsle,tmp_mean30,tmp_mean15,tmp_mean12,tmp_min30,
+                                     tmp_min15,tmp_min12,tmp_max30,tmp_max15,tmp_max12]):
+            value_name = f'{name}{suffix}'
+            try:
+                if value_name in np.array(result)[:,0]:
+                    for n in range(2,10):
+                        if f'{value_name}_{n}' in np.array(result)[:,0]:
+                            pass
+                        else:
+                            result.append((f'{value_name}_{n}',suf_value))
+                            break
+                else:
+                    result.append((value_name,suf_value))
+            except:
+                result.append((value_name,suf_value))
     result = DataFrame(result)
     result.to_excel(f'{output}.xlsx')
     return result
@@ -141,16 +149,18 @@ def analysis_acknowledge(filename_signal, filename_events, output, freq=FREQ, or
         tmp_max15=np.max(filtered[datapoint:datapoint+(15*FREQ)])*correction
         tmp_max12=np.max(filtered[datapoint:datapoint+(12*FREQ)])*correction
 
-        result.append((f'{name}_baseline'.replace(' ',''),tmp_bsle))
-        result.append((f'{name}_mean30'.replace(' ',''),tmp_mean30))
-        result.append((f'{name}_mean15'.replace(' ',''),tmp_mean15))
-        result.append((f'{name}_mean12'.replace(' ',''),tmp_mean12))
-        result.append((f'{name}_min30'.replace(' ',''),tmp_min30))
-        result.append((f'{name}_min15'.replace(' ',''),tmp_min15))
-        result.append((f'{name}_min12'.replace(' ',''),tmp_min12))
-        result.append((f'{name}_max30'.replace(' ',''),tmp_max30))
-        result.append((f'{name}_max15'.replace(' ',''),tmp_max15))
-        result.append((f'{name}_max12'.replace(' ',''),tmp_max12))
+        for suffix,suf_value in zip(['_baseline','_mean30','_mean15','_mean12','_min30',
+                                     '_min15','_min12','_max30','_max15','_max12'],
+                                    [tmp_bsle,tmp_mean30,tmp_mean15,tmp_mean12,tmp_min30,
+                                     tmp_min15,tmp_min12,tmp_max30,tmp_max15,tmp_max12]):
+            value_name = f'{name}{suffix}'
+            try:
+                if value_name in np.array(result)[:,0]:
+                    result.append((f'{value_name}_2',suf_value))
+                else:
+                    result.append((value_name,suf_value))
+            except:
+                result.append((value_name,suf_value))
     result = DataFrame(result)
     result.to_excel(f'{output}.xlsx')
     return result
