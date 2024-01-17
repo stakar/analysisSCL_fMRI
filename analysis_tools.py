@@ -3,7 +3,7 @@ import bioread
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import medfilt
-from pandas import DataFrame
+from pandas import DataFrame, Index, read_excel
 from os import listdir
 
 ORIGINF = 5000 #Original frequency
@@ -168,15 +168,15 @@ def analysis_acknowledge(filename_signal, filename_events, output, freq=FREQ, or
 
 def create_placeholder(reference='preprocessed_fup\JM22A_B011_TP6.xlsx', output='result.xlsx'):
     if output not in listdir():
-        tmp = pd.read_excel(filename)
+        tmp = read_excel(filename)
         columns = tmp[0].values
-        pd.DataFrame(columns = columns).to_excel(output)
+        DataFrame(columns = columns).to_excel(output)
 create_placeholder()
 
 def add_result(file,code):
-    tmp = pd.read_excel(file,index_col=0)
+    tmp = read_excel(file,index_col=0)
     columns = tmp[0].values
     transposed = tmp.T.drop(0)
     transposed.columns = columns
-    transposed.index = pd.Index([code])
+    transposed.index = Index([code])
     return transposed
