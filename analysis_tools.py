@@ -11,15 +11,86 @@ import re
 
 ORIGINF = 5000 #Original frequency
 FREQ=100 #Frequency after resampling (source freq: 5kHz, resampling 50x lower to 100Hz)
-import numpy as np 
-import pandas as pd
-from analysis_tools import *
-from os import listdir
-import time
-import re
-from scipy import stats
-ORIGINF=5000
-FREQ=100
+
+def convert_acq_mne(filename='analiza_follow up\JM22a_B140_TP6_evt.acq'):
+    data = bioread.read_file(filename)
+    n_channels = len(data.channels)
+    sampling_freq = int(data.channels[0].samples_per_second)  # in Hertz
+    channel_names = [n.name for n in data.channels]
+
+    times = int(data.channels[0].samples_per_second)
+    data = np.array([n.data for n in data.channels])
+    info = mne.create_info(
+        ch_names=channel_names, ch_types=['misc']*n_channels, sfreq=sampling_freq
+    )
+    print(info)    
+    raw = mne.io.RawArray(data, info)
+    return raw
+
+def create_stimlist_file_from_data(filename : str) -> list:
+    data = bioread.read_file(filename)
+    x = lambda a : a>0
+    result = []
+    print('creating stimlist...')
+    for idx in range(2,len(data.channels[0].data)):
+        uno = [str(int(x(n.data[idx]))) for n in list(reversed(data.channels[1:]))]
+        duo = [str(int(x(n.data[idx-1]))) for n in list(reversed(data.channels[1:]))]
+        uno = int(''.join(uno),2)
+        duo = int(''.join(duo),2)
+        if (uno>1 and duo<1):
+            code = code_generator(uno,'S')
+            result.append((code,idx))
+    print('done!')
+    return result
+
+def create_stimlist_file_from_data2(filename: str) -> list:
+    # Wczytaj dane
+    data = bioread.read_file(filename)
+    print('creating stimlist...')
+    
+    # Pobierz dane z kanałów
+    channels_data = np.array([channel.data for channel in data.channels[1:]])
+    
+    # Stwórz binarną reprezentację wartości >0
+    binary_data = (channels_data > 0).astype(int)
+    
+    # Zamień binarną reprezentację na wartości dziesiętne (dla każdego indeksu)
+    decimal_values = np.dot(binary_data.T, 2 ** np.arange(binary_data.shape[0])[::-1])
+    
+    # Znajdź indeksy, gdzie uno > 1 i duo < 1
+    shifted_decimal_values = np.roll(decimal_values, 1)  # Przesunięcie o jeden indeks
+    condition = (decimal_values > 1) & (shifted_decimal_values < 1)
+    
+    # Wygeneruj listę wynikową
+    result = [(code_generator(val, 'S'), idx) for idx, val in enumerate(decimal_values) if condition[idx]]
+    
+    print('done!')
+    return result
+
+def code_generator(n : str,firstLetter = 'S') -> str:
+    return '{}{: 3d}'.format(firstLetter,n)
+
+
+def get_stimlist(filename : str) -> list:
+    """Opens file (text, name of file) in vmrk format, reads events and return list
+    with tuples [(name_of_stimulus,stimulus_data_point)]"""
+    with open(filename,'r') as file:
+        data = file.read()
+    stimlist=[n for n in data.split('\n') if 'Stimulus' in n]
+    return [(n.split(',')[1],int(n.split(',')[2])) for n in stimlist]
+
+def get_stimulus_array(stimlist):
+    """Export array of stimuli data poitns from stimlist"""
+    return np.array(stimlist)[:,1].astype(int)
+
+def get_stimulus_names(stimlist):
+    """Export array of stimuli names from stimlist"""
+    return np.array(stimlist)[:,0]
+
+def resample_events(stim_array,resample_coef=50):
+    """Resample events using given coefficient, accepts 
+    returns numpy array with rounded resampled stimulus."""
+    return np.round(stim_array/resample_coef).astype(int)
 
 def get_ssa(sig):
     """
@@ -386,3 +457,62 @@ def calculate_save_results_bsl(signal,
                     result.to_excel(writer, 
                                     sheet_name=f'{condition}_{part}',
                                     header=False)
+                    
+
+def get_ssa(sig):
+    """
+    Get Slope Sign Alterations
+    See Baksys repo for original version.
+    """
+    res1 = []
+    res2 = []
+    for n in range(len(sig)-2):
+        uno = (sig[n-1]-sig[n])
+        if uno!=0:
+            uno = uno/np.abs(sig[n-1]-sig[n])
+            res1.append(uno)
+        dos = (sig[n+1]-sig[n])
+        if dos!=0:
+            dos = dos/np.abs(sig[n+1]-sig[n])
+            res2.append(dos)
+    # in case of 0 at preceding, but not at following
+    # sample
+    if len(res1)>len(res2):
+        res1.pop()
+    return np.sum(np.abs(np.array(res1)+np.array(res2))/2)
+
+def get_slope(arr):
+    """
+    Calculate mean slope of signal
+    """
+    return stats.linregress(np.arange(0,len(arr)),arr)[0]
+def get_slope_2_points(arr):
+    """
+    Calculate slope between begining and the end of signal
+    """
+    return stats.linregress(np.array([0,1]), np.array([arr[0],arr[-1]]))[0]
+
+def calc_normalized_signal_change(signal,preceding_signal):
+    """
+    Calculate signal with:
+    100✕(SCLStim-SCLbaseline/SCLbaseline)
+    where SCLStim is the mean signal value during the 
+    stimulus and SCLbaseline is an SCL reaction 
+    during the baseline preceding the first part in 
+    each scenario (Sugimine et al. 2020).
+    """
+    stimSCL = np.mean(signal)
+    stimBSL = np.mean(preceding_signal)
+    return 100*((stimSCL-stimBSL)/stimBSL)
+def get_normalized_signal_change(signal,
+                                 point,
+                                 time_window=27*100,
+                                 time_window_preceding=3*100,
+                                baseline = None):
+    partSig = signal[point:(point+time_window)]
+    if baseline==None:
+        precedSig = signal[point-time_window_preceding:point]
+    else:
+        precedSig = baseline
+    return calc_normalized_signal_change(partSig,precedSig)
+
