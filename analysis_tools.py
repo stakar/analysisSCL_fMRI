@@ -27,45 +27,40 @@ def convert_acq_mne(filename='analiza_follow up\JM22a_B140_TP6_evt.acq'):
     raw = mne.io.RawArray(data, info)
     return raw
 
-def create_stimlist_file_from_data(filename : str) -> list:
+def create_stimlist_file_from_data(filename: str) -> list:
+    # Load data
     data = bioread.read_file(filename)
-    x = lambda a : a>0
-    result = []
     print('creating stimlist...')
-    for idx in range(2,len(data.channels[0].data)):
-        uno = [str(int(x(n.data[idx]))) for n in list(reversed(data.channels[1:]))]
-        duo = [str(int(x(n.data[idx-1]))) for n in list(reversed(data.channels[1:]))]
-        uno = int(''.join(uno),2)
-        duo = int(''.join(duo),2)
-        if (uno>1 and duo<1):
-            code = code_generator(uno,'S')
-            result.append((code,idx))
+    
+    # Read channel data
+    channels = data.channels[1:]  # Ignore EDA channel
+    num_channels = len(channels)
+    
+    result = []
+    
+    # Function to convert values to binary format
+    to_binary = lambda value: 1 if value > 0 else 0
+    
+    for idx in range(1, len(channels[0].data)):  # Start from 1, as we will use n-1 index
+        # Generate binary representation for current index
+        uno = [str(to_binary(channel.data[idx])) for channel in reversed(channels)]
+        # Generate binary representation for previous index
+        duo = [str(to_binary(channel.data[idx - 1])) for channel in reversed(channels)]
+        
+        # Convert binary values to decimal
+        uno_decimal = int("".join(uno), 2)
+        duo_decimal = int("".join(duo), 2)
+        
+        # Check if index fullfills condition
+        if uno_decimal > 1 and duo_decimal < 1:
+            # Generate stimuli name
+            code = code_generator(uno_decimal, 'S')
+            # Add to results pair of code and index
+            result.append((code, idx))
+    
     print('done!')
     return result
 
-def create_stimlist_file_from_data2(filename: str) -> list:
-    # Wczytaj dane
-    data = bioread.read_file(filename)
-    print('creating stimlist...')
-    
-    # Pobierz dane z kanałów
-    channels_data = np.array([channel.data for channel in data.channels[1:]])
-    
-    # Stwórz binarną reprezentację wartości >0
-    binary_data = (channels_data > 0).astype(int)
-    
-    # Zamień binarną reprezentację na wartości dziesiętne (dla każdego indeksu)
-    decimal_values = np.dot(binary_data.T, 2 ** np.arange(binary_data.shape[0])[::-1])
-    
-    # Znajdź indeksy, gdzie uno > 1 i duo < 1
-    shifted_decimal_values = np.roll(decimal_values, 1)  # Przesunięcie o jeden indeks
-    condition = (decimal_values > 1) & (shifted_decimal_values < 1)
-    
-    # Wygeneruj listę wynikową
-    result = [(code_generator(val, 'S'), idx) for idx, val in enumerate(decimal_values) if condition[idx]]
-    
-    print('done!')
-    return result
 
 def code_generator(n : str,firstLetter = 'S') -> str:
     return '{}{: 3d}'.format(firstLetter,n)
